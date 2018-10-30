@@ -7,6 +7,9 @@ from .device_port import DevicePort
 
 
 class DeviceFactory:
+    is_initialized = False
+    logger = None
+
     def __init__(self, log_level=logging.INFO, list_devices_fn=None):
         self.ports = {}
         self.arduino_exit_events = []
@@ -16,24 +19,22 @@ class DeviceFactory:
         self.list_devices_fn = list_devices_fn
 
         self.log_level = log_level
-        self.make_logger(self.log_level)
-        self.is_initialized = False
 
-        self.logger.debug("configuring all connecting devices")
         self.configure_devices()
 
     def ok(self):
         return all([not event.is_set() for event in self.arduino_exit_events])
 
-    def make_logger(self, level):
+    @classmethod
+    def make_logger(cls, level):
         print_handle = logging.StreamHandler()
         print_handle.setLevel(level)
-        self.logger = logging.getLogger("Device Factory")
-        self.logger.setLevel(level)
+        cls.logger = logging.getLogger("Device Factory")
+        cls.logger.setLevel(level)
 
         formatter = logging.Formatter(DEFAULT_LOG_FORMAT)
         print_handle.setFormatter(formatter)
-        self.logger.addHandler(print_handle)
+        cls.logger.addHandler(print_handle)
 
     @staticmethod
     def list_devices_default():
@@ -56,20 +57,24 @@ class DeviceFactory:
         """Configure all devices if they haven't been already"""
 
         # Arduino.ports shared between all Arduino instances. Initialize it if it isn't
-        self.logger.info("configuring for the first time")
+        if DeviceFactory.is_initialized is False:
+            self.make_logger(self.log_level)
+            self.logger.info("Device factory configuring for the first time")
 
-        addresses = self.list_devices_fn()
-        self.logger.info("Found suitable addresses: '%s'" % addresses)
+            addresses = self.list_devices_fn()
+            self.logger.info("Found suitable addresses: '%s'" % addresses)
 
-        if len(addresses) == 0:
-            raise RuntimeError("Found no valid Arduino addresses!!")
+            if len(addresses) == 0:
+                raise RuntimeError("Found no valid Arduino addresses!!")
 
-        # start threads that poll all discovered addresses
-        self.collect_all_devices(addresses)
+            # start threads that poll all discovered addresses
+            self.collect_all_devices(addresses)
 
-        self.logger.info("configuring done")
+            self.logger.info("configuring done")
 
-        self.is_initialized = True
+            DeviceFactory.is_initialized = True
+        else:
+            raise RuntimeError("Multiple instances of DeviceFactory were created. There should be only one in use for all arduinos!!")
 
     def collect_all_devices(self, addresses):
         """Initialize all Arduinos on their own threads"""
@@ -128,10 +133,14 @@ class DeviceFactory:
         return self.ports[whoiam].pop(0)
 
     def stop_all(self):
+        print(self.ports)
         for device_ports in self.ports.values():
             for device_port in device_ports:
-                self.logger.info("Stopping '%s' with address '%s'" % (device_port.whoiam, device_port.address))
-                device_port.stop()
+                try:
+                    self.logger.info("Stopping '%s' with address '%s'" % (device_port.whoiam, device_port.address))
+                    device_port.stop()
+                except BaseException as error:
+                    self.logger.warning("Failed to stop device port! %s. \n\t%s" % (str(device_port), str(error)))
 
         for event in self.arduino_exit_events:
             event.set()

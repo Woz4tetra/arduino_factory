@@ -31,13 +31,13 @@ class DevicePort:
         self.make_logger(log_level)
 
     def make_logger(self, level):
-        print_handle = logging.StreamHandler()
-        print_handle.setLevel(level)
+        # print_handle = logging.StreamHandler()
+        # print_handle.setLevel(level)
         self.logger = logging.getLogger("Device Factory")
 
-        formatter = logging.Formatter(DEFAULT_LOG_FORMAT)
-        print_handle.setFormatter(formatter)
-        self.logger.addHandler(print_handle)
+        # formatter = logging.Formatter(DEFAULT_LOG_FORMAT)
+        # print_handle.setFormatter(formatter)
+        # self.logger.addHandler(print_handle)
 
     @classmethod
     def init_configure(cls, address, log_level):
