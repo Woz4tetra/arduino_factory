@@ -20,7 +20,7 @@ class DeviceFactory:
 
         self.log_level = log_level
 
-        self.configure_devices()
+        # self.init()
 
     def ok(self):
         return all([not event.is_set() for event in self.arduino_exit_events])
@@ -53,7 +53,7 @@ class DeviceFactory:
 
         return addresses
 
-    def configure_devices(self):
+    def init(self):
         """Configure all devices if they haven't been already"""
 
         # Arduino.ports shared between all Arduino instances. Initialize it if it isn't
@@ -122,7 +122,7 @@ class DeviceFactory:
 
     def get_device(self, whoiam):
         if not self.is_initialized:
-            raise RuntimeError("Factory isn't initialized!! Please call DeviceFactory.configure_devices.")
+            raise RuntimeError("Factory isn't initialized!! Please call DeviceFactory.init().")
         if whoiam not in self.ports:
             raise RuntimeError(
                 "'whoaim' ID '%s' not found. ID's that were found: %s" % (whoiam, str(list(self.ports.keys())))

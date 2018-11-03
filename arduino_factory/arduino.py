@@ -36,10 +36,8 @@ class Arduino:
         self.start_time = 0.0
         self.first_packet = None
         self._factory = factory
-
-        self._device_port_info = self._factory.get_device(self.whoiam)
-        self._device_port_info["baud"] = baud
-        self._device_port = DevicePort.reinit(self._device_port_info)
+        self.baud = baud
+        self.device_port = None
 
         self._global_sequence_num = 0
         self._arduino_time = 0.0
@@ -82,29 +80,43 @@ class Arduino:
         with self._device_write_lock:
             self._device_write_queue.put(PauseCommand(pause_time, relative_time))
 
+    def clear_write_queue(self):
+        with self._device_write_lock:
+            if not self._device_write_queue.empty():
+                self._factory.logger.debug("Clearing write queue for '%s'" % self.whoiam)
+                while not self._device_write_queue.empty():
+                    packet = self._device_write_queue.get()
+                    self._factory.logger.debug("Cleared packet: '%s'" % packet)
+
     def start(self):
-        if not self._device_start_event.is_set():
-            first_packet = self._device_port.first_packet
-            self.start_time = self._device_port.start_time
-            # self._prev_receive_time = self._device_port.start_time
+        if self._device_start_event.is_set():
+            self._factory.logger.warning("Start already called for '%s'" % self.whoiam)
+            return None
+        self._device_port_info = self._factory.get_device(self.whoiam)
+        self._device_port_info["baud"] = self.baud
+        self._device_port = DevicePort.reinit(self._device_port_info)
 
-            self._device_process.start()
-            self._device_start_event.set()
+        first_packet = self._device_port.first_packet
+        self.start_time = self._device_port.start_time
+        # self._prev_receive_time = self._device_port.start_time
 
-            if len(first_packet) > 0:
-                name, data = self._parse_data(first_packet, is_first_packet=True)
-            else:
-                name = "first_packet"
-                data = None
-            packet_struct = Packet()
-            packet_struct.global_sequence_num = -1
-            packet_struct.timestamp = 0
-            packet_struct.receive_time = time.time()
-            packet_struct.name = name
-            packet_struct.data = data
+        self._device_process.start()
+        self._device_start_event.set()
 
-            self.first_packet = packet_struct
-            return packet_struct
+        if len(first_packet) > 0:
+            name, data = self._parse_data(first_packet, is_first_packet=True)
+        else:
+            name = "first_packet"
+            data = None
+        packet_struct = Packet()
+        packet_struct.global_sequence_num = -1
+        packet_struct.timestamp = 0
+        packet_struct.receive_time = time.time()
+        packet_struct.name = name
+        packet_struct.data = data
+
+        self.first_packet = packet_struct
+        return packet_struct
 
     def stop(self):
         self._device_exit_event.set()
